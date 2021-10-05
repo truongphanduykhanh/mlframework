@@ -149,7 +149,6 @@ class LightGBM:
     def __init__(self):
         self.booster: lgb.Booster = None
         self.grid_search: pd.DataFrame = None
-        self.best_booster: lgb.Booster = None
 
     def train(self, train: lgb.Dataset, params: dict, num_boost_round: int):
         '''
@@ -248,7 +247,7 @@ class LightGBM:
             .iloc[0]
             .to_dict()
         )
-        best_booster = lgb.train(
+        booster = lgb.train(
             params=best_params,
             train_set=train,
             num_boost_round=num_boost_round,
@@ -259,7 +258,7 @@ class LightGBM:
             evals_result=evals_result
         )
         self.grid_search_results = grid_search_results
-        self.best_booster = best_booster
+        self.booster = booster
         print('Done')
 
     def predict(self, X: pd.DataFrame) -> np.array:
