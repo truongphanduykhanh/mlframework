@@ -223,7 +223,7 @@ class LightGBM:
         """
         if params_dict == 'default':
             params_dict = LightGBM.DEFAULT_PARAMS_DICT
-            print('Training LightGBM with default params settings.')
+            print('Training LightGBM with default params settings.', end=' ')
             print('See more at attribute "DEFAULT_PARAMS_DICT".')
 
         params_list = convert_params_to_list_dict(params_dict)
@@ -231,7 +231,7 @@ class LightGBM:
         random.shuffle(params_list)  # shuffle to get better estimate of completing time
         start = datetime.datetime.now()
         start_time = start.strftime('%H:%M:%S')
-        print(f'There are {len(params_list)} hyperparameter combinations.')
+        print(f'There are {len(params_list)} hyperparameter combinations.', end=' ')
         print(f'Starting turning at {start_time}...')
 
         self.grid_search_results = []
@@ -269,6 +269,7 @@ class LightGBM:
             print(f'Finishing {i+1:4}/{len(params_list)} \
                 ---> Remaining {hours:02}:{minutes:02}:{seconds:02}')
 
+        print('Choosing the best booster...')
         self.grid_search_results = pd.DataFrame(self.grid_search_results)
         best_params = (
             self.grid_search_results
@@ -292,13 +293,16 @@ class LightGBM:
             verbose_eval=False,
             evals_result=evals_result
         )
+        # assign to instance attributes
         self.booster = booster
         self.params = best_params
         self.params_dict = params_dict
-        end_i = end_i.strftime('%H:%M:%S')
-        hours, minutes, seconds = get_hours_minutes_seconds(until_i)
-        print(f'Done at {end_i}')
-        print(f'Duration {hours:02}:{minutes:02}:{seconds:02}')
+        # print log
+        end = datetime.datetime.now()
+        end = end.strftime('%H:%M:%S')
+        until_end = end - start
+        hours, minutes, seconds = get_hours_minutes_seconds(until_end)
+        print(f'Done at {until_end}. Duration {hours:02}:{minutes:02}:{seconds:02}.')
 
     def plot_metric_sensitivity(self, nrows: Union[int, str] = 'auto', ncols: int = 2):
         """Plot metric sensitivity.
@@ -449,7 +453,7 @@ def plot_calibration_curve(y_true: list, y_pred: list, n_level: int = 10):
     max_predict_mean = max(gain_df['predict_mean'])
     max_true_mean = max(gain_df['true_mean'])
     lim_axis = max(max_predict_mean, max_true_mean)
-    plt.plot([0.0, lim_axis], [0.0, lim_axis], linestyle='-.', color='grey')
+    plt.plot([0.0, lim_axis], [0.0, lim_axis], linestyle='-.', color='grey', linewidth=0.5)
     plt.title('Calibration Curve', size=14)
 
 
