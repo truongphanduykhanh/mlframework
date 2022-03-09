@@ -306,9 +306,7 @@ class LightGBM(DataPrep):
     def train(
         self,
         params: dict = None,
-        num_boost_round: int = 500,
-        verbose_eval: int = 10,
-        early_stopping_rounds: int = 50
+        num_boost_round: int = 500
     ):
         """Train lightgbm model.
 
@@ -316,18 +314,14 @@ class LightGBM(DataPrep):
             params (dict, optional): Hyperparameters. If None, default hyperparameters will be set.
                 Defaults to None.
             num_boost_round (int, optional): Number of boosting round. Defaults to 500.
-            verbose_eval (int, optional): Evaluation metric is printed every verbose_eval rounds.
-                Defaults to 10.
-            early_stopping_rounds (int, optional): Will stop training if metric in validation data
-                doesn't improve in last early_stopping_round. Only applied if there is valid set
-                when splitting or registering data. Defaults to 50.
         """
         train_data = lgb.Dataset(data=self.train_feat, label=self.train_label)
         DEFAULTED_PARAMS = {
             'objective': 'binary',
             'metric': 'auc',
             'learning_rate': 0.1,
-            'verbose': -1
+            'verbose': -1,
+            'early_stopping_rounds': 50
         }
         if params:
             DEFAULTED_PARAMS.update(params)
@@ -340,8 +334,7 @@ class LightGBM(DataPrep):
                 train_set=train_data,
                 num_boost_round=num_boost_round,
                 valid_sets=train_data,
-                valid_names='train',
-                verbose_eval=verbose_eval
+                valid_names='train'
             )
         else:
             valid_data = lgb.Dataset(data=self.valid_feat, label=self.valid_label, reference=train_data)
@@ -350,9 +343,7 @@ class LightGBM(DataPrep):
                 train_set=train_data,
                 num_boost_round=num_boost_round,
                 valid_sets=[train_data, valid_data],
-                valid_names=['train', 'valid'],
-                early_stopping_rounds=early_stopping_rounds,
-                verbose_eval=verbose_eval
+                valid_names=['train', 'valid']
             )
         self.booster = booster
 
@@ -367,8 +358,7 @@ class LightGBM(DataPrep):
         valid_feat: pd.DataFrame = None,
         folds: list = None,
         nfold: int = 5,
-        num_boost_round: int = 500,
-        early_stopping_rounds: int = 50
+        num_boost_round: int = 500
     ) -> float:
         # default params search space
         DEFAULTED_PARAMS = {
@@ -376,6 +366,7 @@ class LightGBM(DataPrep):
             'metric': 'auc',
             'learning_rate': 0.1,
             'verbose': -1,
+            'early_stopping_rounds': 50,
             'num_leaves': [15, 1023],
             'max_depth': [3, 12],
             'min_data_in_leaf': [10, 100],
@@ -397,8 +388,6 @@ class LightGBM(DataPrep):
                 params=DEFAULTED_PARAMS,
                 train_set=train_data,
                 num_boost_round=num_boost_round,
-                early_stopping_rounds=early_stopping_rounds,
-                verbose_eval=False,
                 folds=folds,
                 nfold=nfold,
                 return_cvbooster=True
@@ -416,9 +405,7 @@ class LightGBM(DataPrep):
                 train_set=train_data,
                 num_boost_round=num_boost_round,
                 valid_sets=[train_data, valid_data],
-                valid_names=['train', 'valid'],
-                early_stopping_rounds=early_stopping_rounds,
-                verbose_eval=False
+                valid_names=['train', 'valid']
             )
             metric_name = list(booster.best_score['valid'])[0]  # the first metric name (if many)
             metric_value = booster.best_score['valid'][metric_name]  # the first metric's best value
@@ -444,7 +431,6 @@ class LightGBM(DataPrep):
         valid_size: int = 1,
         gap: int = 2,
         num_boost_round: int = 500,
-        early_stopping_rounds: int = 50,
         direction: str = 'maximize'
     ):
         """Hyperparameter tunning lightgbm with optuna.
@@ -474,9 +460,6 @@ class LightGBM(DataPrep):
                 valid when cv_method='oot'. Example: 'gap=2' means use data upto now to predict
                 label in 2 periods. Ignore if cv_method='random'. Defaults to 2.
             num_boost_round (int, optional): Number of boosting round. Defaults to 500.
-            early_stopping_rounds (int, optional): Will stop training if (any) metric in validation
-                data doesn't improve in last early_stopping_round. Set first_metric_only=True in
-                params if want to use only the first metric for early stopping. Defaults to 50.
             direction (str, optional): Direction to optimize the metric. Defaults to 'maximize'.
 
         Raises:
@@ -513,8 +496,7 @@ class LightGBM(DataPrep):
                 valid_feat=self.valid_feat,
                 folds=folds,
                 nfold=nfold,
-                num_boost_round=num_boost_round,
-                early_stopping_rounds=early_stopping_rounds
+                num_boost_round=num_boost_round
             ),
             n_trials=n_trials,
             callbacks=[LightGBM._callback]
@@ -524,7 +506,8 @@ class LightGBM(DataPrep):
             'objective': 'binary',
             'metric': 'auc',
             'learning_rate': 0.1,
-            'verbose': -1
+            'verbose': -1,
+            'early_stopping_rounds': 50
         }
         if params:
             DEFAULTED_PARAMS.update(params)
@@ -553,8 +536,10 @@ class LightGBM(DataPrep):
             )
             self.cvbooster = cvbooster['cvbooster']
         # re-train with best_params and best_num_boost_round
+        retrain_best_params = self.best_params.copy()
+        del retrain_best_params['early_stopping_rounds']  # delete early_stopping_rounds
         booster = lgb.train(
-            params=self.best_params,
+            params=retrain_best_params,
             train_set=train_data,
             num_boost_round=self.best_num_boost_round
         )
@@ -915,10 +900,10 @@ class MLFramework(LightGBM, XGBoost):
                 Defaults to None.
             num_boost_round (int, optional): Number of boosting round. Defaults to 500.
             verbose_eval (int, optional): Evaluation metric is printed every verbose_eval rounds.
-                Defaults to 10.
+                Only apply for xgboost. Defaults to 10.
             early_stopping_rounds (int, optional): Will stop training if metric in validation data
                 doesn't improve in last early_stopping_round. Only applied if there is valid set
-                when splitting or registering data. Defaults to 50.
+                when splitting or registering data. Only apply for xgboost. Defaults to 50.
             algo (str, optional): Algorithm. Must be either 'lgb' or 'xgb'. Defaults to 'lgb'.
 
         Raises:
@@ -927,7 +912,7 @@ class MLFramework(LightGBM, XGBoost):
         if algo not in ['lgb', 'xgb']:
             raise ValueError("algo must be either 'lgb' or 'xgb'.")
         elif algo == 'lgb':
-            LightGBM.train(self, params, num_boost_round, verbose_eval, early_stopping_rounds)
+            LightGBM.train(self, params, num_boost_round, early_stopping_rounds)
         elif algo == 'xgb':
             XGBoost.train(self, params, num_boost_round, verbose_eval, early_stopping_rounds)
         self.algo = algo
@@ -975,7 +960,8 @@ class MLFramework(LightGBM, XGBoost):
             num_boost_round (int, optional): Number of boosting round. Defaults to 500.
             early_stopping_rounds (int, optional): Will stop training if (any) metric in validation
                 data doesn't improve in last early_stopping_round. Set first_metric_only=True in
-                params if want to use only the first metric for early stopping. Defaults to 50.
+                params if want to use only the first metric for early stopping. Only apply for
+                xgboost.Defaults to 50.
             direction (str, optional): Direction to optimize the metric. Defaults to 'maximize'.
             algo (str, optional): Algorithm. Must be either 'lgb' or 'xgb'. Defaults to 'lgb'.
 
@@ -997,7 +983,6 @@ class MLFramework(LightGBM, XGBoost):
                 valid_size,
                 gap,
                 num_boost_round,
-                early_stopping_rounds,
                 direction
             )
         elif algo == 'xgb':
