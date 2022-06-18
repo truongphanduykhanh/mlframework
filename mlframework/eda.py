@@ -1,6 +1,6 @@
-"""Provides end-to-end flow to use machine learning models.
+"""Provides common functions when doing EDA.
 """
-__author__ = 'khanhtpd'
+__author__ = 'khanhtruong'
 __date__ = '2021-12-01'
 
 

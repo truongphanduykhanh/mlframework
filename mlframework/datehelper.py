@@ -1,3 +1,9 @@
+"""Provides utility functions working with dates.
+"""
+__author__ = 'khanhtruong'
+__date__ = '2022-06-18'
+
+
 import datetime
 
 import pandas as pd
