@@ -11,33 +11,39 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-sns.set()
+sns.set_theme()
 
 
-def count_missing_columns_rows(data: pd.DataFrame, figsize: tuple = (12, 4)):
+def count_missing_values(data: pd.DataFrame, figsize: tuple[int] = (12, 4)):
     """Count missing values according to columns and rows.
 
     Args:
         data (pd.DataFrame): Input data frame.
-        figsize (tuple, optional): Size of figure. Defaults to (12, 4).
+        figsize (tuple[int], optional): Size of figure. Defaults to (12, 4).
     """
     bins = np.linspace(0, 1, 11)
     plt.figure(figsize=figsize)
 
     plt.subplot(1, 2, 1)
-    missing_column = data.isna().sum(axis=0) / data.shape[0]
-    missing_column = (
-        pd.cut(missing_column, bins=bins, include_lowest=False, right=True)
-        .cat.add_categories(pd.Interval(0.0, 0.0, closed='both')))
-    missing_column.cat.reorder_categories(missing_column.cat.categories.sortlevel()[0], inplace=True)
-    missing_column = (
-        missing_column
-        .fillna(pd.Interval(0, 0, closed='both'))
+    miss_col = data.isna().sum(axis=0) / data.shape[0]  # % missing values at every column
+    miss_all_col = miss_col[miss_col == 1]  # note all-missing columns
+    # cut missing percentage into intervals
+    miss_col = pd.cut(miss_col, bins=bins, include_lowest=False, right=True)
+    miss_col = miss_col.cat.add_categories([0, 1])  # add categories 0 and 1
+    miss_col = miss_col.fillna(0)  # none missing column
+    miss_col[miss_all_col.index] = 1  # all-missing column
+    miss_col = (
+        miss_col.replace(
+            pd.Interval(0.9, 1.0, closed='right'),
+            pd.Interval(0.9, 1.0, closed='neither')))  # replace the closed 1 by open 1.
+    miss_col = (
+        miss_col
         .value_counts()
-        .sort_index()
-    )
-    ax = missing_column.plot(kind='barh')
-    total = missing_column.sum()
+        .sort_index())
+    miss_col_idx = [0] + [x for x in miss_col.index if x != 0]  # move index 0 to first
+    miss_col = miss_col[miss_col_idx]
+    ax = miss_col.plot(kind='barh')
+    total = miss_col.sum()
     for p in ax.patches:
         percentage = 100 * p.get_width() / total
         percentage = f'{percentage:.1f}%'
@@ -50,19 +56,25 @@ def count_missing_columns_rows(data: pd.DataFrame, figsize: tuple = (12, 4)):
 
     plt.subplots_adjust(wspace=0.5)
     plt.subplot(1, 2, 2)
-    missing_row = data.isna().sum(axis=1) / data.shape[1]
-    missing_row = (
-        pd.cut(missing_row, bins=bins, include_lowest=False, right=True)
-        .cat.add_categories(pd.Interval(0.0, 0.0, closed='both')))
-    missing_row.cat.reorder_categories(missing_row.cat.categories.sortlevel()[0], inplace=True)
-    missing_row = (
-        missing_row
-        .fillna(pd.Interval(0, 0, closed='both'))
+    miss_row = data.isna().sum(axis=1) / data.shape[1]  # % missing values at every row
+    miss_all_col = miss_row[miss_row == 1]  # note all-missing rows
+    # cut missing percentage into intervals
+    miss_row = pd.cut(miss_row, bins=bins, include_lowest=False, right=True)
+    miss_row = miss_row.cat.add_categories([0, 1])  # add categories 0 and 1
+    miss_row = miss_row.fillna(0)  # none missing row
+    miss_row[miss_all_col.index] = 1  # all-missing row
+    miss_row = (
+        miss_row.replace(
+            pd.Interval(0.9, 1.0, closed='right'),
+            pd.Interval(0.9, 1.0, closed='neither')))  # replace the closed 1 by open 1.
+    miss_row = (
+        miss_row
         .value_counts()
-        .sort_index()
-    )
-    ax = missing_row.plot(kind='barh')
-    total = missing_row.sum()
+        .sort_index())
+    miss_row_idx = [0] + [x for x in miss_row.index if x != 0]  # move index 0 to first
+    miss_row = miss_row[miss_row_idx]
+    ax = miss_row.plot(kind='barh')
+    total = miss_row.sum()
     for p in ax.patches:
         percentage = 100 * p.get_width() / total
         percentage = f'{percentage:.1f}%'
@@ -74,24 +86,29 @@ def count_missing_columns_rows(data: pd.DataFrame, figsize: tuple = (12, 4)):
     plt.title('Missing values - Rows', size=15)
 
 
-def top_missing_columns(data: pd.DataFrame, ntop: int = 10, figsize: Union[tuple, str] = 'auto'):
+def top_missing_columns(
+    data: pd.DataFrame,
+    ntop: Union[int, str] = 10,
+    figsize: Union[tuple[int], str] = 'auto'
+):
     """Count missing values in every columns.
 
     Args:
         data (pd.DataFrame): Input data frame.
-        ntop (int, optional): Number of top missing columns displayed. Defaults to 10.
-        figsize (Union[tuple[int], str], optional): Size of the whole plot. If 'auto',
-            figsize = (12, ntop / 2). Defaults to 'auto'.
+        ntop (int, optional): Number of top missing columns displayed. 'all' means all columns.
+            Defaults to 10.
+        figsize (Union[tuple[int], str], optional): Size of figure. If 'auto', figsize =
+            (8, ntop / 2.5). Defaults to 'auto'.
     """
     if ntop == 'all':
         ntop = data.shape[1]
     if figsize == 'auto':
-        figsize = (12, ntop / 2)
+        figsize = (8, ntop / 2.5)
     plt.figure(figsize=figsize)
-    missing_count = data.isna().sum()
-    missing_count = missing_count.sort_values(ascending=False)[0: ntop]
-    missing_count = missing_count.sort_values(ascending=True)
-    ax = missing_count.plot(kind='barh')
+    miss_count = data.isna().sum()
+    miss_count = miss_count.sort_values(ascending=False)[0: ntop]
+    miss_count = miss_count.sort_values(ascending=True)
+    ax = miss_count.plot(kind='barh')
     for p in ax.patches:
         percentage = p.get_width() / len(data) * 100
         percentage = f'{percentage:.1f}%'
