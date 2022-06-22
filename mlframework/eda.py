@@ -1,7 +1,7 @@
 """Provides common functions when doing EDA.
 """
 __author__ = 'khanhtruong'
-__date__ = '2021-12-01'
+__date__ = '2022-06-30'
 
 
 import math
@@ -118,74 +118,56 @@ def top_missing_columns(
     plt.title('Top missing values columns', size=15)
 
 
+def oversample(
+    data: pd.DataFrame,
+    label: str,
+) -> pd.DataFrame:
+    """Oversampling an imbalanced data to get perfect balanced data.
+
+    Args:
+        data (pd.DataFrame): Imbalanced input data.
+        label (str): Label name in the data.
+
+    Returns:
+        (pd.DataFrame): Balanced data.
+    """
+    label_count = (  # count every label in the data set
+        data
+        .loc[:, label]
+        .value_counts()
+    )
+    label_max = label_count.idxmax()  # most common label
+    label_remain = [x for x in label_count.index if x != label_max]
+    for label_i in label_remain:  # if there're more than one 'minor' label
+        # oversample the 'minor' labels so that size of 'minor' labels equal to the most common one
+        factor = int(label_count[label_max] / label_count[label_i])
+        remainder = label_count[label_max] - factor * label_count[label_i]
+        label_data = data.loc[lambda df: df[label] == label_i]
+        over_sample_factor = pd.concat([label_data] * factor)
+        over_sample_remainder = label_data.sample(remainder, replace=False, random_state=0)
+        over_sample = pd.concat([
+            data.loc[lambda df: df[label] == label_max],
+            over_sample_factor, over_sample_remainder
+        ], axis=0)
+    return over_sample
+
+
 def displot(
     data: pd.DataFrame,
-    columns: list[str] = None,
-    kind: str = 'hist',
-    nrows: Union[int, str] = 'auto',
-    ncols: int = 2,
-    figsize: Union[tuple[int], str] = 'auto',
-    hspace: float = 0.7,
-    wspace: float = 0.5,
-    title: str = 'Distribution of numerical variables',
-    y_title: float = 1
-):
-    """Plot distribution plot of continuous variables.
-
-    Args:
-        data (pd.DataFrame): Input data frame.
-        columns (list[str], optional): Names of numerical columns in the data frame.
-            If None, numerical columns will be taken. Defaults to None.
-        kind (str, optional): Kind of plot. Defaults to 'hist'.
-        nrows (Union[int, str], optional): Number of rows in the plot.
-            If 'auto', will be automatically calulated based on ncols. Defaults to 'auto'.
-        ncols (int, optional): Number of columns in the plot. Defaults to 2.
-        figsize (Union[tuple[int], str], optional): Size of the whole plot. If 'auto',
-            figsize = (12, 2 * nrows). Defaults to 'auto'.
-        hspace (float, optional): Height space between sup plots. Defaults to 0.7.
-        wspace (float, optional): Width space between sup plots. Defaults to 0.5.
-        title (str, optional): Title. Defaults to 'Distribution of numerical variables'.
-        y_title (float, optional): Position of title. Defaults to 1.
-    """
-    if columns is None:
-        columns = data.select_dtypes(include=np.number).columns
-    if len(columns) == 1:
-        ncols = 1
-    if nrows == 'auto':
-        nrows = math.ceil(len(columns) / ncols)
-    if figsize == 'auto':
-        figsize = (12, 2 * nrows)
-    plt.figure(figsize=figsize)
-    for i, column in enumerate(columns):
-        plt.subplot(nrows, ncols, i + 1)
-        plt.subplots_adjust(hspace=hspace, wspace=wspace)
-        data[column].plot(kind=kind)
-        plt.xlabel('')
-        plt.ylabel('')
-        plt.title(column)
-    if len(columns) > 1:
-        plt.suptitle(title, size=15, y=y_title)
-
-
-def boxplot(
-    data: pd.DataFrame,
-    columns: list[str] = None,
     label: str = None,
+    kind: str = 'box',
     nrows: Union[int, str] = 'auto',
     ncols: int = 2,
     figsize: Union[tuple[int], str] = 'auto',
     hspace: float = 0.7,
-    wspace: float = 0.5,
-    y_title: float = 1,
-    title: str = 'Distribution of numerical variables',
+    wspace: float = 0.5
 ):
-    """Plot boxplot of numerical variables.
+    """Distribution plot of numerical variables.
 
     Args:
         data (pd.DataFrame): Input data frame.
-        columns (list[str], optional): Names of numerical columns in the data frame.
-            If None, numerical columns will be taken. Defaults to None.
-        label (str, optional): Name of column label in the data frame. Defaults to None.
+        label (str, optional): Label column in the data. Defaults to None.
+        kind (str, optional): Kind of plot. 'box', 'kde' or 'hist'. Defaults to 'box'.
         nrows (Union[int, str], optional): Number of rows in the plot.
             If 'auto', will be automatically calulated based on ncols. Defaults to 'auto'.
         ncols (int, optional): Number of columns in the plot. Defaults to 2.
@@ -193,27 +175,35 @@ def boxplot(
             figsize = (12, 2 * nrows). Defaults to 'auto'.
         hspace (float, optional): Height space between sup plots. Defaults to 0.7.
         wspace (float, optional): Width space between sup plots. Defaults to 0.5.
-        title (str, optional): Title. Defaults to 'Distribution of numerical variables'.
-        y_title (float, optional): Position of title. Defaults to 1.
     """
-    if columns is None:
-        columns = data.select_dtypes(include=np.number).columns
-    if len(columns) == 1:
+    # select columns which are numeric and not the label column
+    cols = data.select_dtypes(include=np.number).cols
+    cols = [col for col in cols if col != label]
+    # nrows, ncols and size of figure
+    if len(cols) == 1:
         ncols = 1
     if nrows == 'auto':
-        nrows = math.ceil(len(columns) / ncols)
+        nrows = math.ceil(len(cols) / ncols)
     if figsize == 'auto':
         figsize = (12, 2 * nrows)
     plt.figure(figsize=figsize)
-    for i, column in enumerate(columns):
+    for i, col in enumerate(cols):
+        if label is None:
+            data_i = data[[col]]
+        else:  # oversample the data according to the label
+            data_i = data[[col, label]].dropna()
+            data_i = oversample(data_i, label).reset_index()
         plt.subplot(nrows, ncols, i + 1)
         plt.subplots_adjust(hspace=hspace, wspace=wspace)
-        sns.boxplot(x=column, y=label, data=data, orient='h')
+        if kind == 'box':
+            sns.boxplot(x=col, y=label, data=data_i, orient='h')
+        if kind == 'kde':
+            sns.kdeplot(x=col, hue=label, data=data_i)
+        if kind == 'hist':
+            sns.histplot(x=col, hue=label, data=data_i, stat='density')
         plt.xlabel('')
         plt.ylabel('')
-        plt.title(column)
-    if len(columns) > 1:
-        plt.suptitle(title, size=15, y=y_title)
+        plt.title(col)
 
 
 def countplot(
@@ -331,79 +321,10 @@ def correlation_matrix(data: pd.DataFrame, figsize: tuple = (7, 7)):
     mask = np.zeros_like(corr, dtype=bool)
     mask[np.triu_indices_from(mask)] = True
     # Set up the matplotlib figure
-    f, ax = plt.subplots(figsize=(7, 7))
+    f, ax = plt.subplots(figsize=figsize)
     # Generate a custom diverging colormap
     cmap = sns.diverging_palette(220, 10, as_cmap=True)
     # Draw the heatmap with the mask and correct aspect ratio
     sns.heatmap(corr, mask=mask, cmap=cmap, vmax=1, center=0,
                 square=True, linewidths=.5, cbar_kws={"shrink": .5})
     plt.title('Correlation among variables', size=15)
-
-
-def categorical_to_numeric(
-    data: pd.DataFrame,
-    features: Union[str, list[str]],
-    label: str = None,
-    method: str = 'target',
-    drop_first: bool = False,
-    missing_value_integer: Union[int, str] = -1
-) -> pd.DataFrame:
-    """Convert categorical to numeric variables.
-
-    Args:
-        data (pd.DataFrame): Input data frame.
-        features (Union[str, list[str]]): Names of categorical features.
-        label (str, optional): Name of label column, must be specified if method='label'.
-            Defaults to None.
-        method (str, optional): Method to convert categorical to numeric. Defaults to 'target'.
-        drop_first (bool, optional): If method='one_hot', option to drop the first converted
-            one-hot column. Defaults to False.
-        missing_value_integer (Union[int, str], optional): If method='integer', option to convert
-            missing values to maximum number of classes, np.nan or -1. Defaults to -1.
-
-    Raises:
-        ValueError: Choose method in ['target', 'one_hot', 'integer'].
-
-    Returns:
-        pd.DataFrame: Converted data frame.
-    """
-    if method not in ['target', 'one_hot', 'integer']:
-        raise ValueError("method must be one of ['target', 'one_hot', 'integer'].")
-    converted_data = data.copy()
-
-    if type(features) is not list:  # option to input only one feature
-        features = [features]
-
-    if method == 'target':  # missing values remain missing values.
-        for feature in features:
-            feature_label = (
-                converted_data
-                .groupby(feature)
-                .agg({label: np.mean})
-                .reset_index())
-            feature_label_dict = dict(zip(feature_label[feature], feature_label[label]))
-            converted_data[feature] = converted_data[feature].replace(feature_label_dict)
-        print(f'Missing values, if any, remain as missing values.')
-
-    elif method == 'one_hot':  # missing values have 0 for all one-hot columns.
-        for feature in features:
-            dummies = pd.get_dummies(converted_data[feature], drop_first=drop_first)
-            data_drop = converted_data.drop(feature, axis=1)
-            converted_data = pd.concat([data_drop, dummies], axis=1)
-        print(f'Missing values, if any, have 0 for all the converted one-hot columns.')
-
-    elif method == 'integer':  # missing values are encoded as predetermined values.
-        global categories_dict_list
-        categories_dict_list = []
-        for feature in features:
-            if missing_value_integer == 'max':
-                missing_value_integer = converted_data[feature].astype('category').cat.codes.max() + 1
-            categories = converted_data[feature].astype('category').cat.categories
-            categories_dict = dict(zip(categories, range(len(categories))))
-            categories_dict_list.append(categories_dict)
-            converted_data[feature] = (
-                converted_data[feature]
-                .astype('category').cat.codes.replace(-1, missing_value_integer))
-        print(f'Categorical(s) have been encoded according to categories_dict_list.')
-        print(f'Missing values, if any, are encoded as maximum classes, np.nan or -1 (defaulted).')
-    return converted_data
