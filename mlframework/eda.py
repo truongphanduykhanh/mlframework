@@ -14,7 +14,7 @@ import seaborn as sns
 sns.set_theme()
 
 
-def count_missing_values(data: pd.DataFrame, figsize: tuple[int] = (12, 4)):
+def count_missing_values(data: pd.DataFrame, figsize: tuple[int] = (12, 5)):
     """Count missing values according to columns and rows.
 
     Args:
@@ -98,12 +98,12 @@ def top_missing_columns(
         ntop (int, optional): Number of top missing columns displayed. 'all' means all columns.
             Defaults to 10.
         figsize (Union[tuple[int], str], optional): Size of figure. If 'auto', figsize =
-            (8, ntop / 2.5). Defaults to 'auto'.
+            (8, ntop / 2). Defaults to 'auto'.
     """
     if ntop == 'all':
         ntop = data.shape[1]
     if figsize == 'auto':
-        figsize = (8, ntop / 2.5)
+        figsize = (8, ntop / 2)
     plt.figure(figsize=figsize)
     miss_count = data.isna().sum()
     miss_count = miss_count.sort_values(ascending=False)[0: ntop]
@@ -177,7 +177,7 @@ def displot(
         wspace (float, optional): Width space between sup plots. Defaults to 0.5.
     """
     # select columns which are numeric and not the label column
-    cols = data.select_dtypes(include=np.number).cols
+    cols = data.select_dtypes(include=np.number).columns
     cols = [col for col in cols if col != label]
     # nrows, ncols and size of figure
     if len(cols) == 1:
@@ -208,26 +208,19 @@ def displot(
 
 def countplot(
     data: pd.DataFrame,
-    columns: list[str] = None,
     label: str = None,
     nclass: Union[int, str] = 5,
     nrows: Union[int, str] = 'auto',
     ncols: int = 2,
     figsize: Union[tuple[int], str] = 'auto',
-    sort_index: bool = False,
-    sample: int = 10**6,
     hspace: float = 0.7,
-    wspace: float = 0.5,
-    title: str = 'Distribution of categorical variables',
-    y_title: float = 1,
+    wspace: float = 0.5
 ):
     """Count plot categorical variables.
 
     Args:
         data (pd.DataFrame): Input data frame.
-        columns (list[str], optional): Name of categorical columns in the data frame. If None,
-            categorical and string columns will be taken. Defaults to None.
-        label (str, optional):  Name of label column in the data frame. Defaults to None.
+        label (str, optional): Label column in the data. Defaults to None.
         nclass (Union[int, str], optional): Number of class displayed in the plot.
             If 'all', display all classes. Defaults to 5.
         nrows (Union[int, str], optional): Number of rows in the plot.
@@ -235,64 +228,47 @@ def countplot(
         ncols (int, optional): Number of columns in the plot. Defaults to 2.
         figsize (Union[tuple[int], str], optional): Size of the whole plot. If 'auto',
             figsize = (12, 2 * nrows). Defaults to 'auto'.
-        sort_index (bool, optional): Sort by index. Defaults to False.
-        sample (int, optional): Number of drown samples if the dataset is too large.
-            Defaults to 10**6.
         hspace (float, optional): Height space between sup plots. Defaults to 0.7.
         wspace (float, optional): Width space between sup plots. Defaults to 0.5.
-        title (str, optional): Title. Defaults to 'Distribution of categorical variables'.
-        y_title (float, optional): Position of title. Defaults to 1.
     """
-    if columns is None:
-        columns = data.select_dtypes(exclude=np.number).columns
-    if len(data) > sample:
-        print(f'Only {sample:,} random samples out of {len(data):,} are taken.')
-        data = data.sample(sample, random_state=0)
+    cols = data.select_dtypes(exclude=np.number).columns
     if nclass == 'all':
-        nclass = data[columns].nunique().max()
-    if len(columns) == 1:
+        nclass = data[cols].nunique().max()
+    if len(cols) == 1:
         ncols = 1
     if nrows == 'auto':
-        nrows = math.ceil(len(columns) / ncols)
+        nrows = math.ceil(len(cols) / ncols)
     if figsize == 'auto':
-        figsize = (12, 2 * nrows)
-
+        figsize = (12, 3 * nrows)
     plt.figure(figsize=figsize)
-    for i, column in enumerate(columns):
+    for i, col in enumerate(cols):
         plt.subplot(nrows, ncols, i + 1)
         plt.subplots_adjust(hspace=hspace, wspace=wspace)
-        # config sort_index
-        if sort_index:
-            order = (
-                data[column]
-                .value_counts()
-                .iloc[0: min(data[column].nunique(), nclass)]
-                .sort_index(ascending=False)
-                .index)
-        else:
-            order = (
-                data[column]
-                .value_counts()
-                .iloc[0: min(data[column].nunique(), nclass)]
-                .index)
+        # order of the barplot
+        nclass_col = min(nclass, data[col].nunique())
+        order = data[col].value_counts().iloc[0: nclass_col].index
         # config plot
-        if column == label:
-            ax = sns.countplot(
-                y=column,
-                data=data,
-                order=order)
-        else:
-            ax = sns.countplot(
-                y=column,
-                data=data,
-                order=order,
-                hue=label)
+        ax = sns.countplot(
+            y=col,
+            data=data,
+            order=order,
+            hue=label
+        )
         # add percentage to the plot
         total = data.shape[0]
-        for p in ax.patches:
-            percentage = 100 * p.get_width() / total
-            percentage = f'{percentage:.1f}%'
+        count = data[col].value_counts()
+        for i, p in enumerate(ax.patches):
+            # if no label, percentage over all values
+            if label is None:
+                percentage = 100 * p.get_width() / total
+                percentage = f'{percentage:.1f}%'
+            # if label, percentage of label over each class
+            else:
+                count_index = i % nclass_col
+                percentage = 100 * p.get_width() / count.iloc[count_index]
+                percentage = f'{percentage:.1f}%'
             x = p.get_x() + p.get_width()
+            # modify the position of percentage
             if label is None:
                 y_adjust = 0.55
             else:
@@ -300,12 +276,9 @@ def countplot(
             y = p.get_y() + y_adjust
             ax.annotate(percentage, (x, y))
         # label and title
-        plt.title(f'{column} ({data[column].nunique()})', size=12)
+        plt.title(f'{col} ({data[col].nunique()})', size=12)
         plt.xlabel('')
         plt.ylabel('')
-
-    if len(columns) > 1:
-        plt.suptitle(title, size=15, y=y_title)
 
 
 def correlation_matrix(data: pd.DataFrame, figsize: tuple = (7, 7)):
