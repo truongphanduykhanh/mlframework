@@ -300,4 +300,4 @@ def correlation_matrix(data: pd.DataFrame, figsize: tuple = (7, 7)):
     # Draw the heatmap with the mask and correct aspect ratio
     sns.heatmap(corr, mask=mask, cmap=cmap, vmax=1, center=0,
                 square=True, linewidths=.5, cbar_kws={"shrink": .5})
-    plt.title('Correlation among variables', size=15)
+    plt.title('Correlation matrix', size=15)
