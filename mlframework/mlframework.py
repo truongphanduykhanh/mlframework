@@ -13,7 +13,8 @@ import seaborn as sns
 import lightgbm as lgb
 import xgboost as xgb
 import optuna
-from sklearn.linear_model import LogisticRegression
+# from sklearn.linear_model import LogisticRegression
+from sklearn.isotonic import IsotonicRegression
 from sklearn.metrics import confusion_matrix, roc_auc_score
 
 
@@ -1012,7 +1013,12 @@ class MLFramework(LightGBM, XGBoost):
         else:
             test_feat = self.test_feat
 
-        calibrated_booster = LogisticRegression(C=C)
+        calibrated_booster = IsotonicRegression(
+            y_min=0,
+            y_max=1,
+            increasing=True,
+            out_of_bounds='clip'
+        )
         calibrated_booster.fit(
             X=self.booster.predict(test_feat).reshape(-1, 1),
             y=self.test_label)
@@ -1025,7 +1031,12 @@ class MLFramework(LightGBM, XGBoost):
             if self.algo == 'xgb':
                 pred = [booster.predict(test_feat) for booster in self.cvbooster]
             pred = np.mean(pred, axis=0)
-            calibrated_cvbooster = LogisticRegression(C=C)
+            calibrated_cvbooster = IsotonicRegression(
+                y_min=0,
+                y_max=1,
+                increasing=True,
+                out_of_bounds='clip'
+            )
             calibrated_cvbooster.fit(
                 X=pred.reshape(-1, 1),
                 y=self.test_label)
@@ -1169,9 +1180,11 @@ def get_gain_table(true: list, pred: list, n_level: int = 10) -> pd.DataFrame:
     Returns:
         pd.DataFrame: Gain table.
     """
+    level = pd.qcut(pred, n_level, duplicates='drop')
+    n_level = len(level.categories)
     label_levels = reversed(range(1, 1 + n_level))
     label_levels = ['Level' + str(x) for x in label_levels]
-    level = pd.qcut(pred, n_level, labels=label_levels, duplicates='drop')
+    level = level.rename_categories(label_levels)
     gain_df = pd.DataFrame({'true': true, 'predict': pred, 'level': level})
     gain_df = (
         gain_df
